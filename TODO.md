@@ -93,3 +93,7 @@ up to date at the end of every milestone.
   general user-managed app; the status of a user in a meeting started from the
   web client; the refresh token rotation (the old one invalid at once).
 - [ ] r2 mineurs : effacer les jetons de la config Gladys quand les clés sont vidées ou changées (configUpdated) ; ne plus écrire legacySession: null dans /data ; tests pending-never-cleared, migrate-overwrites-newer, signedIn-block-any-client, borne fresh-min-5.
+
+## Minors from review meeting-status-tokens-r2 (2026-11-19)
+- A Connect refused during the stop consumes its OAuth state: the user starts again (the message says so).
+- Two refusal log lines can come close together when the last save at stop follows a failure.
