@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-19
+
 ### Added
 
 - "In a meeting" status of Microsoft Teams (Microsoft Graph presence, work or
@@ -23,3 +25,6 @@ the notes of the version's GitHub Release.
 - Option to count busy and do not disturb as "in a meeting".
 - Pauses kept across restarts (429 `Retry-After`, 5xx, 403, daily budget),
   refusals kept until a new Connect, an unknown presence never published.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-meeting-status/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-meeting-status/releases/tag/v0.1.1

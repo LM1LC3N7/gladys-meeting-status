@@ -1,6 +1,6 @@
 {
   "name": "gladys-meeting-status",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "\"In a meeting\" status of Microsoft Teams (Microsoft Graph presence) and Zoom for Gladys Assistant, through OAuth2 apps of the user, read only.",
   "type": "module",
