@@ -76,3 +76,4 @@ up to date at the end of every milestone.
 - Zoom: whether the granular scope `user:read:presence_status` is enough on a
   general user-managed app; the status of a user in a meeting started from the
   web client; the refresh token rotation (the old one invalid at once).
+- [ ] r2 mineurs : effacer les jetons de la config Gladys quand les clés sont vidées ou changées (configUpdated) ; ne plus écrire legacySession: null dans /data ; tests pending-never-cleared, migrate-overwrites-newer, signedIn-block-any-client, borne fresh-min-5.
