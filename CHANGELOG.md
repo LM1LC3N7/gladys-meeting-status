@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-19
+
 ### Fixed
 
 - A renewed token is never lost when Gladys cannot keep it: a renewal is sent
@@ -36,5 +38,6 @@ the notes of the version's GitHub Release.
 - Pauses kept across restarts (429 `Retry-After`, 5xx, 403, daily budget),
   refusals kept until a new Connect, an unknown presence never published.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-meeting-status/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-meeting-status/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-meeting-status/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-meeting-status/releases/tag/v0.1.1
