@@ -19,6 +19,7 @@ the notes of the version's GitHub Release.
 - OAuth2 with the user's own apps (Microsoft Entra ID, Zoom Marketplace),
   PKCE, Connect returning to Gladys or a pasted address, tokens renewed before
   their end and kept in `/data` only.
+- The tokens are kept by Gladys in its database, never in `/data`.
 - Option to count busy and do not disturb as "in a meeting".
 - Pauses kept across restarts (429 `Retry-After`, 5xx, 403, daily budget),
   refusals kept until a new Connect, an unknown presence never published.

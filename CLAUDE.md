@@ -43,7 +43,7 @@ src/oauth.js        authorization addresses (PKCE), token endpoints, pending sig
 src/presence.js     the presence read and what it means (in a meeting or not, unknown)
 src/http.js         the only network access (node:https, bounded), errors by status
 src/devices.js      the device and its states (pure)
-src/store.js        /data/meeting-status-state.json (0600): tokens, stops, pauses, times
+src/store.js        /data/meeting-status-state.json (0600): stops, pauses, times (never a token)
 src/config.js       config_schema normalized, client key (hash of service, id, tenant)
 src/constants.js    endpoints, keys, limits, timings
 src/i18n.js         runtime texts, device and feature names (en/fr)
@@ -84,7 +84,8 @@ test/kit/           clocks and HTTPS test servers copied from gladys-testkit
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 - **Secrets**: never a token, a code nor a client secret in a log, a status, an
-  error message or a state; the tokens live in `/data` only. A secret field is
+  error message or a state; the tokens live in the configuration of Gladys only (`setConfig`, key
+  `<service>_session` outside the schema), never in `/data`. A secret field is
   described as "kept by Gladys in its database, never shown again" (Gladys does
   not protect it further: never claim more).
 - **Never invent a value**: an unknown presence is not published, never as 0.

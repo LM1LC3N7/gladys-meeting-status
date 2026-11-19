@@ -201,12 +201,12 @@ test('the state of /data: repaired, pauses capped, a future time taken as now, a
     },
     now,
   );
-  assert.equal(m.microsoft.session.refreshToken, 'r');
+  assert.equal(m.microsoft.legacySession.refreshToken, 'r', 'tokens of an older /data, to move');
   assert.equal(m.microsoft.block, null);
   assert.equal(m.microsoft.pause.until, now + 6 * 3600 * 1000);
   assert.equal(m.microsoft.lastCycleAt, now);
   assert.equal(m.microsoft.requests.count, 0);
-  assert.equal(m.zoom.session, null);
+  assert.equal(m.zoom.legacySession, null);
   assert.equal(m.zoom.pause, null);
   assert.deepEqual(Object.keys(normalizeMemory(null, now)), ['microsoft', 'zoom']);
 });

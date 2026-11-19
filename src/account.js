@@ -53,6 +53,9 @@ export class Account {
     this.timers = host.timers;
     // Every request counts in the daily budget; a socket error becomes a ServiceError.
     this.transport = async (...args) => {
+      if (this.closed) {
+        throw new ServiceError('stale', 'stopped');
+      }
       this.countRequest();
       try {
         return await host.transport(...args);
@@ -73,6 +76,13 @@ export class Account {
     this.lastReadMono = -Infinity;
     this.pausedUntil = 0;
     this.pauseKind = undefined;
+    /** The tokens (in memory; saved in the configuration of Gladys, never in /data). */
+    this.stored = null;
+    this.sessionLoaded = false;
+    /** Tokens not saved in Gladys yet (a failed setConfig): saved again at the next read. */
+    this.sessionPending = false;
+    /** The container stops: no timer, no request any more. */
+    this.closed = false;
     this.reset();
   }
 
@@ -112,6 +122,11 @@ export class Account {
     await this.renewing?.catch(() => {});
     const previous = this.config.client;
     this.config = config;
+    if (!this.sessionLoaded) {
+      // The tokens saved in Gladys are read once; afterwards this process holds the truth.
+      this.stored = config.stored ?? null;
+      this.sessionLoaded = true;
+    }
     if (previous !== config.client) {
       this.lastReadMono = -Infinity;
     }
@@ -165,6 +180,8 @@ export class Account {
 
   stop() {
     this.generation += 1;
+    // An exchange or a renewal in flight never schedules anything after it.
+    this.epoch += 1;
     this.clearTimer();
     this.clearRenewTimer();
   }
@@ -185,13 +202,47 @@ export class Account {
 
   /** The session of the configured client, or null. */
   get session() {
-    const s = this.memory.session;
+    const s = this.stored;
     return s && this.config.client && s.client === this.config.client ? s : null;
   }
 
-  /** Signed in (counts in "in a meeting, Teams or Zoom"). */
+  /**
+   * Counts in "in a meeting, Teams or Zoom": an account with a session, or
+   * stopped (renewal or access refused) on its current keys. Its value is
+   * then unknown, never left out: only keys emptied (or never authorized)
+   * take a service out.
+   */
   get signedIn() {
-    return Boolean(this.session) && this.blocked !== 'no_client';
+    const client = this.config.client;
+    return (
+      Boolean(client) &&
+      (Boolean(this.session) || this.host.memory(this.provider)?.block?.client === client)
+    );
+  }
+
+  /** New tokens (or none): in memory at once, then saved in Gladys. */
+  async setSession(value) {
+    this.stored = value;
+    this.sessionPending = true;
+    return this.saveSession();
+  }
+
+  /** Saves the tokens in the configuration of Gladys; false when it failed (tried again later). */
+  async saveSession() {
+    if (!this.sessionPending || this.closed) {
+      return !this.sessionPending;
+    }
+    const value = this.stored;
+    try {
+      await this.host.saveSession(this.provider, value);
+      if (this.stored === value) {
+        this.sessionPending = false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.warn(`${this.provider}: tokens not saved in Gladys (${err?.status ?? 'error'})`);
+      return false;
+    }
   }
 
   get interval() {
@@ -323,8 +374,8 @@ export class Account {
     this.clearTimer();
     if (kind === 'expired') {
       // The renewal token is useless now: a new authorization replaces it.
-      this.memory.session = null;
       this.clearRenewTimer();
+      await this.setSession(null);
     }
     if (PERSISTED.has(kind)) {
       this.memory.block = { kind, client: this.config.client };
@@ -347,6 +398,9 @@ export class Account {
    */
   scheduleRenew() {
     this.clearRenewTimer();
+    if (this.closed) {
+      return;
+    }
     const s = this.session;
     if (!s || PERSISTED.has(this.blocked)) {
       return;
@@ -431,7 +485,7 @@ export class Account {
     // Only a new session makes the answer useless; a restart on the same
     // session keeps it: the renewal token sent may be consumed, the new one is kept.
     const replaced = () => {
-      const current = this.memory.session;
+      const current = this.stored;
       return !current || current.client !== s.client || current.refreshToken !== s.refreshToken;
     };
     let token;
@@ -461,16 +515,17 @@ export class Account {
       return;
     }
     // Renewal tokens rotate (Zoom, Microsoft): the new one is kept at once.
-    this.memory.session = {
-      client: s.client,
-      ...token,
-      refreshToken: token.refreshToken ?? s.refreshToken,
-    };
     this.renewFailures = 0;
     this.renewRetryAt = 0;
     this.renewError = undefined;
-    await this.host.saveMemory();
-    if (epoch === this.epoch) {
+    // Saved in Gladys before it is used: a restart keeps the renewal token
+    // the service now expects (the old one may be refused already).
+    await this.setSession({
+      client: s.client,
+      ...token,
+      refreshToken: token.refreshToken ?? s.refreshToken,
+    });
+    if (epoch === this.epoch && !this.closed) {
       this.scheduleRenew();
     }
   }
@@ -557,6 +612,9 @@ export class Account {
 
   scheduleAt(at) {
     this.clearTimer();
+    if (this.closed) {
+      return;
+    }
     const delay = at - this.now();
     const generation = this.generation;
     this.timer = this.timers.setTimeout(
@@ -584,7 +642,12 @@ export class Account {
 
   async run({ quick = false } = {}) {
     const generation = this.generation;
-    if (this.blocked || !this.host.ready()) {
+    if (this.blocked || !this.host.ready() || this.closed) {
+      return;
+    }
+    // Tokens not saved in Gladys yet: tried again before the read.
+    await this.saveSession();
+    if (generation !== this.generation) {
       return;
     }
     const now = this.now();
@@ -795,7 +858,6 @@ export class Account {
     // A renewal still running with the previous session must not overwrite this one.
     this.epoch += 1;
     const mine = this.epoch;
-    this.memory.session = { client, ...token };
     this.memory.block = null;
     this.blocked = undefined;
     this.failures = 0;
@@ -808,7 +870,12 @@ export class Account {
       this.pauseKind = undefined;
       this.memory.pause = null;
     }
+    await this.setSession({ client, ...token });
     await this.host.saveMemory();
+    if (mine !== this.epoch) {
+      // Stopped or restarted meanwhile: nothing scheduled from here.
+      return { ok: true, message: T.signIn.done };
+    }
     this.logger.info(`${this.provider}: authorized`);
     if (wasSignedIn !== this.signedIn) {
       this.host.signedInChanged();

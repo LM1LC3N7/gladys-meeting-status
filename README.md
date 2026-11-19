@@ -7,7 +7,7 @@ switch on a light outside your office from a scene. Read only.
 - One device, **Meeting status**: "In a meeting (Teams or Zoom)", one in-meeting value per service
   and the presence text of each service.
 - OAuth2 with **your own app** (Microsoft Entra ID, Zoom Marketplace), PKCE, tokens renewed before
-  their end and kept in `/data` only.
+  their end and kept by Gladys in its database (never in `/data`).
 - Microsoft: **work or school accounts only** (Microsoft Graph has no presence for personal
   accounts). Google Meet has no presence API: not covered.
 - One read per service per minute at most; 429 `Retry-After`, growing pauses on 5xx, refusals kept

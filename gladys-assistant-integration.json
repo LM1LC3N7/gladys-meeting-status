@@ -177,8 +177,8 @@
         "fr": "3. Options"
       },
       "description": {
-        "en": "The service sends you back to Gladys and the integration reads your presence. If the redirect URI of your app is not this Gladys, write it in \"Redirect URI\": at the end, copy the whole address the browser shows (it holds code= and state=) and paste it into \"Finish the authorization\" below, within 15 minutes. The tokens are kept in clear in the /data volume of the integration (readable by its container only), sent only to the service that issued them, never in the logs.",
-        "fr": "Le service vous renvoie vers Gladys et l’intégration lit votre présence. Si l’URL de redirection de votre application n’est pas ce Gladys, saisissez-la dans « URL de redirection » : à la fin, copiez l’adresse complète affichée par le navigateur (elle contient code= et state=) et collez-la dans « Terminer l’autorisation » plus bas, dans les 15 minutes. Les jetons sont gardés en clair dans le volume /data de l’intégration (lisible par son conteneur seulement), envoyés seulement au service qui les a émis, jamais dans les journaux."
+        "en": "The service sends you back to Gladys and the integration reads your presence. If the redirect URI of your app is not this Gladys, write it in \"Redirect URI\": at the end, copy the whole address the browser shows (it holds code= and state=) and paste it into \"Finish the authorization\" below, within 15 minutes. The tokens are kept by Gladys in its database (never shown, never in /data), sent only to the service that issued them, never in the logs.",
+        "fr": "Le service vous renvoie vers Gladys et l’intégration lit votre présence. Si l’URL de redirection de votre application n’est pas ce Gladys, saisissez-la dans « URL de redirection » : à la fin, copiez l’adresse complète affichée par le navigateur (elle contient code= et state=) et collez-la dans « Terminer l’autorisation » plus bas, dans les 15 minutes. Les jetons sont gardés par Gladys dans sa base (jamais affichés, jamais dans /data), envoyés seulement au service qui les a émis, jamais dans les journaux."
       }
     },
     {

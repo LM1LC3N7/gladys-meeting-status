@@ -84,7 +84,7 @@ export const TIMINGS = {
   signInTtl: 15 * MINUTE,
   testCooldown: 30 * SECOND,
   /** A reading older than max(3 intervals, this) is unknown: never published as current. */
-  freshMin: 5 * MINUTE,
+  freshMin: 3 * MINUTE,
 };
 
 export const LIMITS = {

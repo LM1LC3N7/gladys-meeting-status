@@ -3,8 +3,6 @@
 // container), per account (Microsoft, Zoom). Never a password (typed on the
 // service's page only), never the client secret (kept by Gladys), never a
 // presence (a restart starts from "unknown"):
-//   - the session: the access and renewal tokens with their ends, and the
-//     client they belong to (a hash of service, client id and tenant);
 //   - a stop that only the user lifts (renewal refused, access refused with
 //     a new token), with its client, so a restart never retries it;
 //   - when the last read succeeded (a restart before the next read stays
@@ -14,8 +12,8 @@
 //     sooner than the interval);
 //   - when the token was last renewed (never two renewals within a minute);
 //   - the requests sent today (the daily budget).
-// The tokens are kept as the services give them, in clear, in a file
-// readable by the container user only (0600).
+// Never a token: the tokens are kept in the configuration of Gladys
+// (setConfig, keys outside the config_schema), see src/account.js.
 // -----------------------------------------------------------------------------
 
 import { open, readFile, rename } from 'node:fs/promises';
@@ -81,8 +79,18 @@ export const PAUSES = {
   backoff: TIMINGS.backoffMax,
 };
 
-function session(raw) {
-  const s = raw?.session;
+/**
+ * A session (tokens) as kept in the configuration of Gladys, or as an older
+ * version kept it in /data: repaired, or null.
+ */
+export function sessionOf(s) {
+  if (typeof s === 'string') {
+    try {
+      s = JSON.parse(s);
+    } catch {
+      return null;
+    }
+  }
   const owner = client(s?.client);
   const refreshToken = str(s?.refreshToken, LIMITS.tokenLength);
   if (!owner || !refreshToken) {
@@ -110,7 +118,9 @@ export function normalizeAccount(raw, now) {
   const lastSuccessAt = time(raw?.lastSuccessAt);
   const requests = raw?.requests;
   return {
-    session: session(raw),
+    // Tokens kept in /data by 0.1.0 before its first release: moved to the
+    // configuration of Gladys at start, then removed from /data.
+    legacySession: sessionOf(raw?.session),
     block:
       BLOCKS.has(block?.kind) && client(block?.client)
         ? { kind: block.kind, client: block.client }

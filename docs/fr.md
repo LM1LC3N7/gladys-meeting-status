@@ -14,7 +14,7 @@ lecture seule :
 
 | Fonction                   | Valeur                                                                            |
 | -------------------------- | --------------------------------------------------------------------------------- |
-| En réunion (Teams ou Zoom) | 1 quand l’un des services le dit ; 0 quand tous les services connectés disent non |
+| En réunion (Teams ou Zoom) | 1 quand l’un des services le dit ; 0 quand tous les services autorisés disent non |
 | En réunion Teams           | 1 / 0                                                                             |
 | Présence Teams             | les codes de Microsoft Graph, `availability / activity` (`Busy / InAMeeting`)     |
 | En réunion Zoom            | 1 / 0                                                                             |
@@ -26,9 +26,13 @@ l’option **Aussi occupé et ne pas déranger**, Occupé, Ne pas déranger et l
 Zoom comptent aussi.
 
 Aucune valeur n’est inventée : une présence absente de la documentation (`PresenceUnknown`, une
-nouvelle valeur), ou un service qui n’a pas pu être lu depuis plus de 3 intervalles (5 minutes au
-moins), est **inconnue** et rien n’est publié ; la dernière valeur reste dans Gladys. « En réunion
-(Teams ou Zoom) » ne passe à 0 que si tous les services connectés ont été lus et disent non.
+nouvelle valeur), ou un service qui n’a pas pu être lu depuis plus de 3 intervalles (3 minutes au
+moins), est **inconnue** et rien n’est publié. Gladys n’a pas de valeur « inconnue » : **la dernière
+valeur reste affichée** ; lisez l’état de l’intégration (ou les textes « Présence Teams » /
+« Présence Zoom » et leur date) avant de vous fier au voyant. « En réunion (Teams ou Zoom) » ne
+passe à 0 que si tous les services autorisés ont été lus récemment et disent non : un service dont
+la session a pris fin (renouvellement refusé) compte comme inconnu jusqu’à un nouveau Connecter ou
+jusqu’à ce que ses clés soient vidées.
 
 Non couverts : les **comptes Microsoft personnels** (Microsoft Graph n’a pas de présence pour eux :
 comptes professionnels ou scolaires seulement), Microsoft Teams gratuit, **Google Meet** (pas d’API
@@ -100,9 +104,14 @@ qu’une fois.
 - Votre mot de passe se saisit sur la page de Microsoft ou de Zoom seulement.
 - Les secrets client sont gardés par Gladys dans sa base, jamais réaffichés, envoyés seulement au
   service qui les a émis.
-- Les jetons d’accès et de renouvellement sont gardés en clair dans le volume `/data` de
-  l’intégration (lisible par son conteneur seulement), envoyés seulement au service qui les a émis,
-  absents des journaux et des messages d’état.
+- Les jetons d’accès et de renouvellement sont gardés par Gladys dans sa base (dans la
+  configuration de l’intégration, jamais affichés à l’écran), envoyés seulement au service qui les
+  a émis, absents de `/data`, des journaux et des messages d’état. `/data` ne garde que des dates,
+  des pauses et des arrêts. Une version qui les gardait dans `/data` les déplace vers Gladys au
+  démarrage, puis les retire de `/data`. Si Gladys ne peut pas garder de nouveaux jetons,
+  l’intégration le note dans les journaux et réessaie à chaque lecture ; un redémarrage avant cela
+  peut demander un nouveau Connecter (les jetons de renouvellement de Zoom et de Microsoft ne
+  servent qu’une fois).
 - La présence est gardée en mémoire seulement, ni dans `/data` ni dans les journaux. « En réunion »
   garde son historique dans Gladys (désactivable par fonction) ; les textes de présence n’en ont
   pas.

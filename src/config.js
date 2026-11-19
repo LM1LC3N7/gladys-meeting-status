@@ -4,6 +4,7 @@
 
 import { createHash } from 'node:crypto';
 import { POLL_SECONDS, RULES } from './constants.js';
+import { sessionOf } from './store.js';
 
 /** Defaults, mirrored by the manifest (checked by test/manifest.test.js). */
 export const DEFAULTS = {
@@ -84,8 +85,13 @@ function address(raw) {
   }
 }
 
-function account(provider, clientId, clientSecret, tenant = '') {
+/** The key of the configuration of Gladys holding the tokens of a service (outside the schema). */
+export const sessionKey = (provider) => `${provider}_session`;
+
+function account(provider, clientId, clientSecret, tenant = '', stored = null) {
   return {
+    // The tokens saved in Gladys (read once, at start).
+    stored,
     provider,
     clientId,
     clientSecret,
@@ -114,8 +120,15 @@ export function normalizeConfig(raw = {}) {
         token(raw?.microsoft_client_id),
         token(raw?.microsoft_client_secret, 1024),
         tenantOf(raw?.microsoft_tenant),
+        sessionOf(raw?.[sessionKey('microsoft')]),
       ),
-      zoom: account('zoom', token(raw?.zoom_client_id), token(raw?.zoom_client_secret, 1024)),
+      zoom: account(
+        'zoom',
+        token(raw?.zoom_client_id),
+        token(raw?.zoom_client_secret, 1024),
+        '',
+        sessionOf(raw?.[sessionKey('zoom')]),
+      ),
     },
     redirectUri: address(raw?.redirect_uri),
     pollSeconds: bounded(raw?.poll_seconds, POLL_SECONDS),

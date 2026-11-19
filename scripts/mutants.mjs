@@ -124,6 +124,71 @@ const MUTANTS = [
     'connect-hint-grows',
     [P, 'join(account.stopMessage(), T.signIn', 'join(account.status?.message, T.signIn'],
   ],
+  [
+    'any-keeps-stopped-services',
+    [
+      A,
+      '(Boolean(this.session) || this.host.memory(this.provider)?.block?.client === client)',
+      'Boolean(this.session)',
+    ],
+  ],
+  [
+    'stop-keeps-epoch',
+    [
+      A,
+      '    // An exchange or a renewal in flight never schedules anything after it.\n    this.epoch += 1;\n',
+      '',
+    ],
+  ],
+  [
+    'closed-transport-open',
+    [
+      A,
+      "      if (this.closed) {\n        throw new ServiceError('stale', 'stopped');",
+      "      if (false) {\n        throw new ServiceError('stale', 'stopped');",
+    ],
+  ],
+  [
+    'tokens-not-saved',
+    [A, '    this.sessionPending = true;\n    return this.saveSession();', '    return true;'],
+  ],
+  ['legacy-tokens-left', [P, '        delete this.memory[p].legacySession;\n', '']],
+  ['state-ttl-off', [O, 'return age >= 0 && age <= TIMINGS.signInTtl;', 'return age >= 0;']],
+  [
+    'retry-after-no-max',
+    [
+      A,
+      '      wait = Math.min(\n        TIMINGS.rateLimitMax,\n        Math.max(TIMINGS.rateLimitMin, err.retryAfter ?? TIMINGS.rateLimitDefault),\n      );',
+      '      wait = Math.max(TIMINGS.rateLimitMin, err.retryAfter ?? TIMINGS.rateLimitDefault);',
+    ],
+  ],
+  [
+    'retry-after-default-0',
+    [A, 'err.retryAfter ?? TIMINGS.rateLimitDefault', 'err.retryAfter ?? 0'],
+  ],
+  ['count-not-incremented', [A, '    memory.requests.count += 1;\n', '']],
+  ['budget-pause-short', [A, 'wait = (dayOf(now) + 1) * DAY - now + MINUTE;', 'wait = MINUTE;']],
+  ['server-error-refused', [O, 'if (TRANSIENT_CODES.has(code)) {', 'if (false) {']],
+  [
+    'hardpaused-exchange',
+    [A, '    if (this.hardPaused) {\n      restore();', '    if (false) {\n      restore();'],
+  ],
+  ['hardpaused-authorize', [P, 'if (account.hardPaused) {', 'if (false) {']],
+  ['code-length-unbounded', [P, 'code.length > LIMITS.codeLength', 'false']],
+  [
+    'block-client-ignored',
+    [A, 'if (this.memory.block?.client === client) {', 'if (this.memory.block) {'],
+  ],
+  ['signin-cap', [O, 'while (this.pending.size >= LIMITS.signIns) {', 'while (false) {']],
+  ['single-flight-renew', [A, 'if (!this.renewing) {', 'if (true) {']],
+  [
+    'generation-after-save',
+    [
+      A,
+      '    await this.host.saveMemory();\n    if (generation !== this.generation) {\n      return;\n    }\n    try {',
+      '    await this.host.saveMemory();\n    try {',
+    ],
+  ],
 ];
 
 function apply(file, from, to) {
@@ -187,11 +252,17 @@ try {
         apply(path, from, to);
       }
       const run = suite(copy);
-      const killed = !run.hung && run.failed !== undefined && run.failed !== '0';
+      // Judged on the exit status: a failed test, a test past its deadline
+      // (cancelled, not "fail") or the whole run past its deadline all kill it.
+      const killed = run.status !== 0;
       if (!killed) {
         survivors += 1;
       }
-      const verdict = run.hung ? `HUNG(${run.status})` : killed ? 'KILLED' : 'SURVIVED';
+      const verdict = run.hung
+        ? `KILLED, deadline (${run.status})`
+        : killed
+          ? 'KILLED'
+          : 'SURVIVED';
       line = `${name}: ${verdict} (fail ${run.failed}, ${run.seconds} s)`;
     } catch (err) {
       survivors += 1;

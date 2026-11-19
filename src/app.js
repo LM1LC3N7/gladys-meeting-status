@@ -17,7 +17,7 @@
 import { DEVICE_TRANSPORTS, createLogger } from '@gladysassistant/integration-sdk';
 import { performance } from 'node:perf_hooks';
 import { Account } from './account.js';
-import { normalizeConfig } from './config.js';
+import { normalizeConfig, sessionKey } from './config.js';
 import { LIMITS, OAUTH_FIELDS, PROVIDERS, SECOND, TIMINGS } from './constants.js';
 import { buildDevice, deviceIds, deviceStates } from './devices.js';
 import { httpsTransport, safeCode } from './http.js';
@@ -80,6 +80,8 @@ export class MeetingApp {
       statusChanged: () => this.statusChanged(),
       presenceChanged: () => this.presenceChanged(),
       signedInChanged: () => this.publishDevices(),
+      saveSession: (provider, value) =>
+        this.gladys.setConfig({ [sessionKey(provider)]: value ?? '' }),
     };
     this.accounts = Object.fromEntries(PROVIDERS.map((p) => [p, new Account(p, host)]));
   }
@@ -96,6 +98,7 @@ export class MeetingApp {
         return;
       }
     }
+    await this.migrateTokens();
     await Promise.all(PROVIDERS.map((p) => this.accounts[p].start(this.config.accounts[p])));
     await this.publishDevices();
     await this.updateStatus();
@@ -104,11 +107,44 @@ export class MeetingApp {
   /** The container stops: every timer cleared, the configuration retries too. */
   shutdown() {
     this.connection += 1;
+    for (const account of Object.values(this.accounts)) {
+      account.closed = true;
+    }
     if (this.configTimer) {
       this.timers.clearTimeout(this.configTimer);
       this.configTimer = undefined;
     }
     this.stop();
+  }
+
+  /**
+   * Tokens an older /data held: moved to the configuration of Gladys (when
+   * Gladys holds none for that service), then removed from /data once Gladys
+   * kept them (a failed save keeps them in /data for the next start).
+   */
+  async migrateTokens() {
+    let changed = false;
+    for (const p of PROVIDERS) {
+      const legacy = this.memory[p].legacySession;
+      if (!legacy) {
+        continue;
+      }
+      const account = this.accounts[p];
+      let kept = true;
+      if (!account.sessionLoaded && !this.config.accounts[p].stored) {
+        account.stored = legacy;
+        account.sessionLoaded = true;
+        account.sessionPending = true;
+        kept = await account.saveSession();
+      }
+      if (kept) {
+        delete this.memory[p].legacySession;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.saveMemory();
+    }
   }
 
   stop() {
@@ -252,9 +288,8 @@ export class MeetingApp {
       this.published = undefined;
     }
     await this.publishDevices();
-    if (next.rule !== previous.rule || next.pollSeconds !== previous.pollSeconds) {
-      await this.presenceChanged();
-    }
+    // A rule, an interval or the services counted may have changed: the values again.
+    await this.presenceChanged();
     await this.updateStatus();
     return undefined;
   }

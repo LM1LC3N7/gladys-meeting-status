@@ -162,7 +162,7 @@ test('signed out: never a request by itself; Connect builds the Microsoft addres
   assert.equal(server.requests.length, 0);
 });
 
-test('Teams: authorization, one read, device and states; tokens only in /data, no secret logged', async (t) => {
+test('Teams: authorization, one read, device and states; tokens in Gladys only, no secret logged', async (t) => {
   const logs = [];
   const { gladys, store, server } = await setup(t, { logs });
   const [exchange] = server.of('ms_token');
@@ -196,10 +196,14 @@ test('Teams: authorization, one read, device and states; tokens only in /data, n
   assert.equal(last(gladys, 'microsoft_presence'), 'Available / Available');
   assert.equal(last(gladys, 'zoom_in_meeting'), undefined);
 
-  const kept = store.data.microsoft.session;
+  // The tokens are kept in the configuration of Gladys, never in /data.
+  const kept = gladys.fake.config.microsoft_session;
   assert.equal(kept.client, MS_CLIENT);
   assert.equal(kept.accessToken, server.ms.access);
   assert.equal(kept.refreshToken, server.ms.refresh);
+  for (const token of [server.ms.access, server.ms.refresh]) {
+    assert.ok(!JSON.stringify(store.data).includes(token), 'no token in /data');
+  }
   const everything = [
     ...logs,
     JSON.stringify(gladys.fake.connectionStatuses),
@@ -305,14 +309,14 @@ test('5xx: growing pauses, never sooner than the interval, never a storm', async
 });
 
 test('the token is renewed before its end; the new renewal token is kept, the old one never sent again', async (t) => {
-  const { store, server, advance } = await setup(t);
+  const { gladys, server, advance } = await setup(t);
   const first = server.ms.refresh;
   await advance(55 * MINUTE, 30 * SECOND);
   const renewals = server.of('ms_token').filter((r) => r.form.grant_type === 'refresh_token');
   assert.equal(renewals.length, 1);
   assert.equal(renewals[0].form.refresh_token, first);
   assert.match(renewals[0].form.scope, /offline_access/);
-  assert.equal(store.data.microsoft.session.refreshToken, server.ms.refresh);
+  assert.equal(gladys.fake.config.microsoft_session.refreshToken, server.ms.refresh);
   assert.notEqual(server.ms.refresh, first);
   await advance(2 * HOUR, MINUTE);
   const sent = server.of('ms_token').map((r) => r.form.refresh_token);
@@ -327,14 +331,14 @@ test('a refused renewal stops the account, kept in /data; a restart does not ret
   );
   await advance(55 * MINUTE, 30 * SECOND);
   assert.match(message(gladys).en, /session ended \(renewal refused\)/);
-  assert.equal(store.data.microsoft.session, null);
+  assert.equal(gladys.fake.config.microsoft_session, '');
   assert.equal(store.data.microsoft.block.kind, 'expired');
   const count = server.requests.length;
   await advance(3 * HOUR, 10 * MINUTE);
   assert.equal(server.requests.length, count, 'never retried by itself');
   // A restart on the same /data: still stopped, nothing sent.
   app.stop();
-  const again = await setup(t, { store, server, signIn: [] });
+  const again = await setup(t, { store, server, signIn: [], config: gladys.fake.config });
   await again.advance(HOUR, 10 * MINUTE);
   assert.equal(server.requests.length, count);
   assert.match(message(again.gladys).en, /session ended/);
@@ -351,7 +355,7 @@ test('a token endpoint answer without an OAuth error is not a refusal (proxy pag
   server.queue('ms_token', answer(403, ''));
   await advance(70 * MINUTE, 30 * SECOND);
   assert.equal(store.data.microsoft.block, null);
-  assert.ok(store.data.microsoft.session, 'the session is kept');
+  assert.ok(gladys.fake.config.microsoft_session.refreshToken, 'the session is kept');
   await advance(2 * HOUR, MINUTE);
   assert.equal(gladys.fake.connectionStatus.connected, true, 'renewed later');
 });
@@ -395,7 +399,7 @@ test('429: Retry-After honored (an HTTP date against the Date header), kept in /
   assert.ok(until - clock.now() > 9 * MINUTE && until - clock.now() <= 10 * MINUTE);
   const count = server.of('ms_presence').length;
   app.stop();
-  const again = await setup(t, { store, server, clock, signIn: [] });
+  const again = await setup(t, { store, server, clock, signIn: [], config: gladys.fake.config });
   await again.advance(9 * MINUTE, 30 * SECOND);
   assert.equal(server.of('ms_presence').length, count, 'the pause survives a restart');
   await again.advance(2 * MINUTE, 30 * SECOND);
@@ -424,11 +428,11 @@ test('Zoom 400 code 5411 is a refused presence, not a refused sign-in', async (t
 });
 
 test('a restart never reads sooner than the interval, and stays connected after a good read', async (t) => {
-  const { app, store, server, clock } = await setup(t);
+  const { app, gladys, store, server, clock } = await setup(t);
   const count = server.of('ms_presence').length;
   await clock.advance(20 * SECOND);
   app.stop();
-  const again = await setup(t, { store, server, clock, signIn: [] });
+  const again = await setup(t, { store, server, clock, signIn: [], config: gladys.fake.config });
   assert.equal(server.of('ms_presence').length, count);
   assert.match(message(again.gladys).en, /connected\. Next read in 4\d s/);
   assert.equal(again.gladys.fake.connectionStatus.connected, true);
@@ -482,7 +486,7 @@ test('/data unreadable: nothing sent nor written, read again every 10 s, then th
   store.fail = true;
   const saves = store.saves;
   const count = server.requests.length;
-  const again = await setup(t, { store, server, signIn: [] });
+  const again = await setup(t, { store, server, signIn: [], config: first.gladys.fake.config });
   assert.match(message(again.gladys).en, /state file of \/data cannot be read/);
   const ack = await again.gladys.fake.oauthAuthorizeUrl(OAUTH_FIELDS.microsoft, GLADYS_REDIRECT);
   assert.equal(ack.success, false);
@@ -560,14 +564,15 @@ test('own redirect URI: the pasted address (state wrapped by the Gladys front) f
 });
 
 test('new keys for one service drop its session, never the other one', async (t) => {
-  const { gladys, server, store } = await setup(t, { config: BOTH });
+  const { app, gladys, server, store } = await setup(t, { config: BOTH });
   await gladys.fake.configUpdated({
     ...BOTH,
     microsoft_client_id: 'aaaaaaaa-2222-3333-4444-555555555555',
   });
   await settle();
   assert.match(message(gladys).en, /Microsoft Teams: not signed in.*Zoom: connected/);
-  assert.ok(store.data.zoom.session);
+  assert.ok(app.accounts.zoom.session.refreshToken);
+  assert.ok(!JSON.stringify(store.data).includes('refresh'));
   const count = server.of('ms_presence').length;
   await gladys.fake.configUpdated({ ...BOTH });
   await settle();
@@ -588,6 +593,7 @@ test('the daily budget: reached, every path of that account waits for the next U
     server: first.server,
     clock: testClock({ start: START + 2 * MINUTE }),
     signIn: [],
+    config: first.gladys.fake.config,
   });
   await again.advance(MINUTE);
   assert.equal(first.server.requests.length, count);
@@ -731,4 +737,275 @@ test('nothing is ever written while /data could not be read', async (t) => {
   const { app } = await setup(t, { store, signIn: [], config: MS });
   await app.saveMemory();
   assert.equal(store.saves, 0);
+});
+
+/** A transport whose requests to `route` wait for `release()`. */
+function holdable(server) {
+  const base = server.transport;
+  const held = { route: null, waiting: [] };
+  server.transport = async (url, options) => {
+    const route = /token/.test(url) ? 'token' : 'presence';
+    if (held.route === route) {
+      await new Promise((resolve) => held.waiting.push(resolve));
+    }
+    return base(url, options);
+  };
+  held.release = () => {
+    held.route = null;
+    held.waiting.splice(0).forEach((resolve) => resolve());
+  };
+  return held;
+}
+
+test('a stopped service stays in "Teams or Zoom": an expired Teams never lets it fall to 0', async (t) => {
+  const { gladys, server, advance } = await setup(t, { config: BOTH });
+  server.zoomPresence = { status: 'In_A_Zoom_Meeting' };
+  await advance(MINUTE);
+  assert.equal(last(gladys, 'in_meeting'), 1);
+  server.queue('ms_token', answer(400, { error: 'invalid_grant' }));
+  await advance(55 * MINUTE, 30 * SECOND);
+  assert.match(message(gladys).en, /Microsoft Teams: the session ended/);
+  server.zoomPresence = { status: 'Available' };
+  await advance(10 * MINUTE, 30 * SECOND);
+  assert.equal(last(gladys, 'zoom_in_meeting'), 0);
+  assert.ok(!statesOf(gladys, 'in_meeting').slice(1).includes(0), 'Teams unknown: never 0');
+  // Keys emptied: Teams no longer counts.
+  await gladys.fake.configUpdated({ ...ZOOM });
+  await settle();
+  assert.equal(last(gladys, 'in_meeting'), 0);
+});
+
+for (const [name, route, act] of [
+  ['an exchange of code', 'token', 'connect'],
+  ['a renewal', 'token', 'renew'],
+  ['a read', 'presence', 'read'],
+]) {
+  test(`shutdown during ${name}: no timer nor request afterwards`, async (t) => {
+    const server = fakeServices();
+    const held = holdable(server);
+    const clock = testClock({ start: START });
+    const ctx = await setup(t, { server, clock, signIn: act === 'connect' ? [] : undefined });
+    let pending;
+    if (act === 'connect') {
+      const back = await ctx.connect('microsoft');
+      held.route = route;
+      pending = ctx.gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, back);
+    } else {
+      held.route = route;
+      await ctx.advance(act === 'renew' ? 51 * MINUTE : MINUTE, 30 * SECOND);
+    }
+    await settle();
+    assert.ok(held.waiting.length >= 1, 'a request is held');
+    ctx.app.shutdown();
+    // The held request itself still goes out; nothing after it.
+    const count = server.requests.length + held.waiting.length;
+    held.release();
+    await pending;
+    await settle();
+    await clock.advance(5 * HOUR);
+    await settle();
+    assert.equal(server.requests.length, count, 'no request after shutdown');
+    assert.equal(clock.pending, 0, 'no timer after shutdown');
+  });
+}
+
+test('tokens of an older /data move to the configuration of Gladys, then leave /data', async (t) => {
+  const legacy = {
+    client: MS_CLIENT,
+    accessToken: 'ms-access-7',
+    refreshToken: 'ms-refresh-7',
+    expiresAt: START + HOUR,
+    obtainedAt: START,
+  };
+  const server = fakeServices();
+  server.ms.access = 'ms-access-7';
+  server.ms.refresh = 'ms-refresh-7';
+  const store = memoryStore({ microsoft: { session: legacy } });
+  const { gladys } = await setup(t, { server, store, signIn: [] });
+  assert.equal(gladys.fake.config.microsoft_session.refreshToken, 'ms-refresh-7');
+  assert.ok(!JSON.stringify(store.data).includes('ms-refresh-7'));
+  assert.equal(gladys.fake.connectionStatus.connected, true);
+});
+
+test('Gladys refusing to keep the tokens: kept in /data still, saved again later', async (t) => {
+  const legacy = {
+    client: MS_CLIENT,
+    accessToken: 'ms-access-7',
+    refreshToken: 'ms-refresh-7',
+    expiresAt: START + HOUR,
+    obtainedAt: START,
+  };
+  const server = fakeServices();
+  server.ms.access = 'ms-access-7';
+  server.ms.refresh = 'ms-refresh-7';
+  const store = memoryStore({ microsoft: { session: legacy } });
+  const gladysFail = { on: true };
+  const clock = testClock({ start: START });
+  const gladys = createFakeGladys({ config: MS });
+  const setConfig = gladys.setConfig.bind(gladys);
+  gladys.setConfig = async (values) => {
+    if (gladysFail.on) {
+      throw Object.assign(new Error('503'), { status: 503 });
+    }
+    return setConfig(values);
+  };
+  const app = new MeetingApp({
+    gladys,
+    logger: recorder([]),
+    transport: server.transport,
+    now: clock.now,
+    mono: clock.monotonic,
+    timers: clock.timers,
+    store,
+  });
+  registerHandlers(gladys, app);
+  t.after(() => app.shutdown());
+  await gladys.connect();
+  await settle();
+  assert.ok(JSON.stringify(store.data).includes('ms-refresh-7'), 'not lost');
+  gladysFail.on = false;
+  await clock.advance(2 * MINUTE);
+  await settle();
+  assert.equal(gladys.fake.config.microsoft_session.refreshToken, 'ms-refresh-7');
+});
+
+test('Retry-After: huge capped at 6 h, absent 5 min', async (t) => {
+  const { server, advance } = await setup(t);
+  server.queue('ms_presence', answer(429, {}, { 'retry-after': '999999999' }));
+  await advance(MINUTE);
+  const count = server.of('ms_presence').length;
+  await advance(5 * HOUR, 30 * MINUTE);
+  assert.equal(server.of('ms_presence').length, count);
+  await advance(90 * MINUTE, 5 * MINUTE);
+  assert.ok(server.of('ms_presence').length > count, 'read again after 6 h');
+  server.queue('ms_presence', answer(429, {}));
+  await advance(2 * MINUTE, MINUTE);
+  const after = server.of('ms_presence').length;
+  await advance(3 * MINUTE, MINUTE);
+  assert.equal(server.of('ms_presence').length, after);
+  await advance(3 * MINUTE, MINUTE);
+  assert.ok(server.of('ms_presence').length > after, 'read again after 5 min');
+});
+
+test('the requests count in the daily budget; reached, the pause lasts until the next UTC day', async (t) => {
+  const { app, gladys, store, server, advance } = await setup(t);
+  const before = store.data.microsoft.requests.count;
+  await advance(3 * MINUTE, MINUTE);
+  assert.equal(store.data.microsoft.requests.count, before + 3);
+  app.memory.microsoft.requests.count = LIMITS.dailyRequests;
+  const count = server.requests.length;
+  await advance(MINUTE, MINUTE);
+  assert.match(message(gladys).en, /daily number of requests reached: paused for 1[45] h/);
+  // 09:04 UTC: the next UTC day is in about 15 hours.
+  await advance(14 * HOUR, 30 * MINUTE);
+  assert.equal(server.requests.length, count);
+  await advance(2 * HOUR, 10 * MINUTE);
+  assert.ok(server.requests.length > count);
+});
+
+test('server_error or temporarily_unavailable of a token endpoint is never a refusal', async (t) => {
+  const { gladys, store, server, advance } = await setup(t);
+  server.queue('ms_token', answer(400, { error: 'temporarily_unavailable' }));
+  await advance(55 * MINUTE, 30 * SECOND);
+  assert.equal(store.data.microsoft.block, null);
+  assert.equal(gladys.fake.connectionStatus.connected, true, 'renewed later');
+});
+
+test('during a 429 pause, Connect and the code exchange send nothing', async (t) => {
+  const { gladys, server, advance, connect } = await setup(t);
+  const back = await connect('microsoft');
+  server.queue('ms_presence', answer(429, {}, { 'retry-after': '3600' }));
+  await advance(MINUTE);
+  const ack = await gladys.fake.oauthAuthorizeUrl(OAUTH_FIELDS.microsoft, GLADYS_REDIRECT);
+  assert.equal(ack.success, false);
+  const count = server.requests.length;
+  const cb = await gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, back);
+  assert.equal(cb.success, false);
+  assert.equal(server.requests.length, count);
+});
+
+test('a code too long, an authorization older than 15 minutes: refused, nothing sent', async (t) => {
+  const { gladys, server, connect, advance } = await setup(t, { signIn: [] });
+  const back = await connect('microsoft');
+  const long = await gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, {
+    ...back,
+    code: 'x'.repeat(LIMITS.codeLength + 1),
+  });
+  assert.equal(long.success, false);
+  await advance(16 * MINUTE, MINUTE);
+  const old = await gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, back);
+  assert.equal(old.success, false);
+  assert.equal(server.requests.length, 0);
+});
+
+test('a stop of other keys never blocks new ones', async (t) => {
+  const store = memoryStore({
+    microsoft: { block: { kind: 'expired', client: '0123456789abcdef' } },
+  });
+  const { gladys } = await setup(t, { store, signIn: [] });
+  assert.match(message(gladys).en, /not signed in/);
+});
+
+test('at most 5 sign-ins wait; one renewal at a time', async (t) => {
+  const { app, server, gladys, advance } = await setup(t);
+  const urls = [];
+  for (let i = 0; i < 6; i += 1) {
+    urls.push((await gladys.fake.oauthAuthorizeUrl(OAUTH_FIELDS.microsoft, GLADYS_REDIRECT)).data);
+  }
+  assert.equal(app.signIns.pending.size, 5);
+  const first = server.approve(urls[0].authorize_url);
+  assert.equal((await gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, first)).success, false);
+  await advance(2 * MINUTE, MINUTE);
+  const before = server.of('ms_token').length;
+  const account = app.accounts.microsoft;
+  await Promise.all([account.renew(), account.renew()]);
+  assert.equal(server.of('ms_token').length, before + 1);
+});
+
+test('stopped while /data is written before a read: the read is not sent', async (t) => {
+  const { app, server, store, advance } = await setup(t);
+  let release;
+  const save = store.save.bind(store);
+  store.save = async (v) => {
+    if (release === null) {
+      await new Promise((resolve) => (release = resolve));
+    }
+    return save(v);
+  };
+  release = null;
+  const count = server.of('ms_presence').length;
+  const tick = advance(MINUTE, MINUTE);
+  await settle();
+  app.stop();
+  release?.();
+  await tick;
+  await settle();
+  assert.equal(server.of('ms_presence').length, count);
+});
+
+test('stop (not shutdown) during an exchange: its answer schedules nothing; after shutdown, no request at all', async (t) => {
+  const server = fakeServices();
+  const held = holdable(server);
+  const clock = testClock({ start: START });
+  const { app, connect, gladys } = await setup(t, { server, clock, signIn: [] });
+  const back = await connect('microsoft');
+  held.route = 'token';
+  const pending = gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, back);
+  await settle();
+  app.stop();
+  held.release();
+  await pending;
+  await settle();
+  const count = server.requests.length;
+  await clock.advance(HOUR);
+  await settle();
+  assert.equal(server.requests.length, count);
+  assert.equal(clock.pending, 0);
+  app.shutdown();
+  // Even a direct call of the transport of an account sends nothing any more.
+  await assert.rejects(
+    app.accounts.microsoft.transport('https://graph.microsoft.com/v1.0/me/presence', {}),
+    (err) => err.kind === 'stale',
+  );
+  assert.equal(server.requests.length, count);
 });

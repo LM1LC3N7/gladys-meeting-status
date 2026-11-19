@@ -13,7 +13,7 @@ One Gladys device, **Meeting status** (Discovery tab, once a service is authoriz
 
 | Feature                      | Value                                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------- |
-| In a meeting (Teams or Zoom) | 1 when one of the services says so; 0 when every signed-in service says no    |
+| In a meeting (Teams or Zoom) | 1 when one of the services says so; 0 when every authorized service says no   |
 | In a Teams meeting           | 1 / 0                                                                         |
 | Teams presence               | the codes of Microsoft Graph, `availability / activity` (`Busy / InAMeeting`) |
 | In a Zoom meeting            | 1 / 0                                                                         |
@@ -24,9 +24,12 @@ One Gladys device, **Meeting status** (Discovery tab, once a service is authoriz
 option **Also busy and do not disturb**, Busy, Do not disturb and the Zoom calendar events count too.
 
 A value is never invented: a presence the documentation does not list (`PresenceUnknown`, a new
-value), or a service that could not be read for more than 3 intervals (5 minutes at least), is
-**unknown** and nothing is published; the last value stays in Gladys. "In a meeting (Teams or
-Zoom)" goes to 0 only when every signed-in service was read and says no.
+value), or a service that could not be read for more than 3 intervals (3 minutes at least), is
+**unknown** and nothing is published. Gladys has no "unknown" value: **the last value stays shown**;
+read the integration status (or the "Teams presence" / "Zoom presence" texts and their date)
+before trusting the light. "In a meeting (Teams or Zoom)" goes to 0 only when every authorized
+service was read lately and says no: a service whose session ended (renewal refused) stays
+counted as unknown until you click Connect again or empty its keys.
 
 Not covered: **personal Microsoft accounts** (Microsoft Graph has no presence for them: work or
 school accounts only), Microsoft Teams free, **Google Meet** (no presence API), other people's
@@ -92,9 +95,13 @@ URI given; an authorization serves once.
 - Your password is typed on the Microsoft or Zoom page only.
 - The client secrets are kept by Gladys in its database, never shown again, sent only to the
   service that issued them.
-- The access and renewal tokens are kept in clear in the `/data` volume of the integration
-  (readable by its container only), sent only to the service that issued them, never in the logs
-  nor in the status messages.
+- The access and renewal tokens are kept by Gladys in its database (in the configuration of the
+  integration, never shown on the screen), sent only to the service that issued them, never in
+  `/data`, the logs nor the status messages. `/data` keeps only times, pauses and stops. A
+  version that kept them in `/data` moves them to Gladys at start, then removes them from `/data`.
+  If Gladys cannot keep new tokens, the integration says it in the logs and tries again at each
+  read; a restart before that may need a new Connect (Zoom and Microsoft renewal tokens serve
+  once).
 - The presence is kept in memory only, never in `/data` nor in the logs. "In a meeting" keeps its
   history in Gladys (you can turn it off per feature); the presence texts have none.
 - The authorization uses PKCE (S256) and a state that serves once, for 15 minutes.
