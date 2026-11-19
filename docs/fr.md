@@ -115,10 +115,11 @@ qu’une fois.
   le nouveau jeton juste après (les journaux disent « tokens not saved in Gladys »), il est
   enregistré de nouveau toutes les 10 secondes à une minute et à chaque reconnexion à Gladys,
   sans autre renouvellement avant. Un arrêt du conteneur attend jusqu’à 8 secondes un
-  renouvellement en cours et son enregistrement. Seuls un plantage ou un arrêt forcé du conteneur
-  dans les secondes mêmes d’un renouvellement, ou un redémarrage avant que Gladys accepte de
-  nouveau le nouveau jeton, peuvent le perdre : l’état dit alors que la session a pris fin ;
-  cliquez sur Connecter.
+  renouvellement en cours et son enregistrement, et tente une dernière fois d’enregistrer un jeton
+  que Gladys avait refusé ; un Connecter pendant l’arrêt est refusé (recliquez une fois
+  l’intégration relancée). Seuls un plantage ou un arrêt forcé du conteneur dans les secondes
+  mêmes d’un renouvellement, ou un arrêt pendant que Gladys refuse encore le nouveau jeton,
+  peuvent le perdre : l’état dit alors que la session a pris fin ; cliquez sur Connecter.
 - La présence est gardée en mémoire seulement, ni dans `/data` ni dans les journaux. « En réunion »
   garde son historique dans Gladys (désactivable par fonction) ; les textes de présence n’en ont
   pas.

@@ -288,6 +288,30 @@ const MUTANTS = [
       '    if (false) {\n      // The container stops: its token could not be kept',
     ],
   ],
+  [
+    'shutdown-no-last-save',
+    [
+      A,
+      '    if (this.sessionPending) {\n      // A token Gladys refused earlier',
+      '    if (false) {\n      // A token Gladys refused earlier',
+    ],
+  ],
+  [
+    'exchange-while-closing',
+    [
+      A,
+      '    if (this.closing) {\n      // The container stops: the new session',
+      '    if (false) {\n      // The container stops: the new session',
+    ],
+  ],
+  [
+    'success-keeps-timer',
+    [
+      A,
+      '      this.sessionFailures = 0;\n      this.clearSessionTimer();\n',
+      '      this.sessionFailures = 0;\n',
+    ],
+  ],
   ['read-while-closing', [A, 'this.closed || this.closing) {', 'this.closed) {']],
 ];
 

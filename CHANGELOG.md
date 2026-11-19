@@ -17,7 +17,8 @@ the notes of the version's GitHub Release.
   tokens (otherwise tried again a minute later), and a new token Gladys
   refused is saved again within seconds and at each reconnection to Gladys,
   not only at the next read. Stopping the container waits up to 8 s for a
-  renewal in flight and its save, and no renewal starts during the stop.
+  renewal in flight and its save, tries once more to save a token Gladys
+  refused, and no renewal nor Connect starts during the stop.
 
 ## [0.1.1] - 2026-11-19
 

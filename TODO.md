@@ -67,9 +67,14 @@ up to date at the end of every milestone.
   by a timer (10 s, 10 s, 10 s, 30 s, then every minute), at each
   reconnection and before each read; one write at a time (each sends the
   session of the moment it leaves). Shutdown (wired in src/handlers.js) sets
-  `closing` (no renewal nor read leaves), waits up to 8 s for a renewal in
-  flight and the writes, then `closed`. Left: a crash or kill in the seconds
-  of a renewal, or a restart before Gladys accepts the new token again. /data keeps stops, pauses and times only. Tokens of an older
+  `closing` (no renewal, read nor code exchange leaves), waits up to 8 s for
+  a renewal in flight, one last write of a token still pending and the
+  writes, then `closed`. Left: a crash or kill in the seconds of a renewal,
+  or a stop while Gladys still refuses the new token.
+- **Known, accepted (review r1 of the token fix)**: the session write of a
+  code exchange goes through the write queue, so behind a witness write or a
+  retry in flight (SDK timeout 15 s) the OAuth answer to Gladys may pass its
+  5 s ack while the session is saved; unlikely, nothing lost. /data keeps stops, pauses and times only. Tokens of an older
   /data are moved to Gladys at start, then removed from /data (kept there if
   Gladys refused them).
 - **Daily budget**: 2,000 requests per service per UTC day (normal pace about

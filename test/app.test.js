@@ -1174,6 +1174,7 @@ test('a new token Gladys refused is saved at once at the reconnection to Gladys'
   await settle();
   assert.equal(refreshIn(gladys), 'ms-refresh-2');
   assert.equal(app.accounts.microsoft.sessionPending, false);
+  assert.equal(app.accounts.microsoft.sessionTimer, undefined, 'the retry timer is cleared');
 });
 
 test('one write at a time: an older write accepted never clears a newer session refused', async (t) => {
@@ -1357,4 +1358,60 @@ test('no read starts while the container stops', async (t) => {
   assert.equal(server.of('ms_presence').length, reads);
   held.release();
   await deadline(done);
+});
+
+test('a token Gladys refused, Gladys back before the retry timer, then the container stops: written once more, kept', async (t) => {
+  const ctx = await setup(t, { config: { ...MS, poll_seconds: 900 } });
+  const { gladys, server, advance } = ctx;
+  const writes = gladysWrites(gladys);
+  writes.fail = newToken(server);
+  await advance(51 * MINUTE, 10 * SECOND);
+  assert.equal(server.ms.refresh, 'ms-refresh-2');
+  assert.equal(refreshIn(gladys), 'ms-refresh-1');
+  assert.ok(ctx.app.accounts.microsoft.sessionTimer, 'the retry timer waits');
+  writes.fail = () => false;
+  await deadline(gladys.fake.shutdown());
+  assert.equal(refreshIn(gladys), 'ms-refresh-2', 'the last write at the stop kept it');
+  assert.equal(ctx.clock.pending, 0);
+  const next = await restart(t, ctx);
+  await next.advance(20 * MINUTE, MINUTE);
+  assert.equal(next.store.data.microsoft.block, null, 'never "session ended"');
+});
+
+test('a sign-in while the container stops: refused, the code is not used', async (t) => {
+  const server = fakeServices();
+  const held = holdable(server);
+  const ctx = await setup(t, { server });
+  await ctx.advance(45 * MINUTE, MINUTE);
+  const back = await ctx.connect('microsoft');
+  held.route = 'token';
+  await ctx.advance(6 * MINUTE, 30 * SECOND);
+  await settle();
+  assert.equal(held.waiting.length, 1, 'a renewal keeps the stop waiting');
+  const done = ctx.app.shutdown();
+  const tokens = server.of('ms_token').length + held.waiting.length;
+  // Bounded: an exchange sent anyway would wait on the held token route.
+  const ack = await deadline(ctx.gladys.fake.oauthCallback(OAUTH_FIELDS.microsoft, back));
+  assert.equal(ack.success, false);
+  assert.match(JSON.stringify(ack), /stopping/);
+  held.release();
+  await deadline(done);
+  assert.equal(server.of('ms_token').length, tokens, 'no code exchange');
+});
+
+test('shutdown with both services renewing: both waited for, both new tokens kept by Gladys', async (t) => {
+  const server = fakeServices();
+  const held = holdable(server);
+  const ctx = await setup(t, { server, config: BOTH });
+  held.route = 'token';
+  await ctx.advance(51 * MINUTE, 30 * SECOND);
+  await settle();
+  assert.equal(held.waiting.length, 2, 'two renewals in flight');
+  const done = ctx.gladys.fake.shutdown();
+  await settle();
+  held.release();
+  await deadline(done);
+  assert.equal(refreshIn(ctx.gladys), 'ms-refresh-2');
+  assert.equal(ctx.gladys.fake.config.zoom_session?.refreshToken, 'zoom-refresh-2');
+  assert.equal(ctx.clock.pending, 0);
 });

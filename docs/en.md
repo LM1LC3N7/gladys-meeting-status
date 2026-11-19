@@ -105,9 +105,10 @@ URI given; an authorization serves once.
   Gladys refuses the new token right after (the logs say "tokens not saved in Gladys"), it is
   saved again every 10 seconds to a minute and at each reconnection to Gladys, with no other
   renewal before. A stop of the container waits up to 8 seconds for a renewal in flight and its
-  save. Only a crash or a kill of the container in the very seconds of a renewal, or a restart
-  before Gladys accepts the new token again, can lose it: the status then says the session ended;
-  click Connect.
+  save, and tries once more to save a token Gladys refused earlier; a Connect during the stop is
+  refused (click it again once the integration runs). Only a crash or a kill of the container in
+  the very seconds of a renewal, or a stop while Gladys still refuses the new token, can lose it:
+  the status then says the session ended; click Connect.
 - The presence is kept in memory only, never in `/data` nor in the logs. "In a meeting" keeps its
   history in Gladys (you can turn it off per feature); the presence texts have none.
 - The authorization uses PKCE (S256) and a state that serves once, for 15 minutes.

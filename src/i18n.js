@@ -166,6 +166,10 @@ export const T = {
         `The service refused the authorization (${code}): check the client id, the client secret (and its end date), the redirect URI, then click Connect again.`,
         `Le service a refusé l’autorisation (${code}) : vérifiez l’identifiant client, le secret client (et sa date de fin), l’URL de redirection, puis cliquez de nouveau sur Connecter.`,
       ),
+    stopping: both(
+      'The integration is stopping: click Connect again once it runs.',
+      'L’intégration s’arrête : cliquez de nouveau sur Connecter une fois qu’elle tourne.',
+    ),
     slow: both(
       'The service did not answer in time: click Connect again.',
       'Le service n’a pas répondu à temps : cliquez de nouveau sur Connecter.',

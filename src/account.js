@@ -203,6 +203,10 @@ export class Account {
    */
   async settle() {
     await this.renewing?.catch(() => {});
+    if (this.sessionPending) {
+      // A token Gladys refused earlier waits for its timer (cleared by stop()): one last try.
+      await this.saveSession();
+    }
     await this.sessionChain;
   }
 
@@ -893,6 +897,10 @@ export class Account {
     if (this.hardPaused) {
       restore();
       return fail(this.pauseMessage());
+    }
+    if (this.closing) {
+      // The container stops: the new session could not be kept (the code is not used).
+      return fail(T.signIn.stopping);
     }
     const epoch = this.epoch;
     const client = this.config.client;
