@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
-  "version": "1.0.0",
+  "name": "gladys-meeting-status",
+  "version": "0.1.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "\"In a meeting\" status of Microsoft Teams (Microsoft Graph presence) and Zoom for Gladys Assistant, through OAuth2 apps of the user, read only.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,17 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test"
+    "test": "node --test --test-timeout=60000",
+    "audit": "npm audit --omit=dev",
+    "cover": "node scripts/cover.mjs",
+    "mutants": "node scripts/mutants.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LM1LC3N7/gladys-meeting-status.git"
   },
   "dependencies": {
     "@gladysassistant/integration-sdk": "^0.16.0"

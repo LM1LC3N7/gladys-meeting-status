@@ -1,177 +1,311 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Meeting status",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Teams (Microsoft Graph) and Zoom \"in a meeting\" status, for a light outside your office.",
+    "fr": "Statut « en réunion » Teams (Microsoft Graph) et Zoom, pour un voyant devant le bureau."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-meeting-status:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-meeting-status/main/cover.png",
+  "categories": ["services"],
+  "transports": ["cloud"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "How it works",
+        "fr": "Fonctionnement"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Gladys reads, about once a minute, whether you are in a meeting or a call: in Microsoft Teams through Microsoft Graph (work or school account only: a personal Microsoft account has no presence), and in Zoom. One Gladys device (Discovery tab): \"In a meeting (Teams or Zoom)\", one per service, and the presence text; use it in a scene to switch on a light outside your office. Each service needs an app you register yourself (OAuth2): fill in only the services you use. Your password is typed on the Microsoft or Zoom page only. Read only, nothing is changed on your accounts. Never tested with a real account. Unofficial integration, not affiliated with Microsoft nor Zoom.",
+        "fr": "Gladys lit, environ une fois par minute, si vous êtes en réunion ou en appel : dans Microsoft Teams par Microsoft Graph (compte professionnel ou scolaire seulement : un compte Microsoft personnel n’a pas de présence), et dans Zoom. Un appareil Gladys (onglet Découverte) : « En réunion (Teams ou Zoom) », un par service, et le texte de présence ; utilisez-le dans une scène pour allumer un voyant devant votre bureau. Chaque service demande une application que vous déclarez vous-même (OAuth2) : remplissez seulement les services que vous utilisez. Votre mot de passe se saisit sur la page de Microsoft ou de Zoom seulement. Lecture seule, rien n’est modifié sur vos comptes. Jamais testée avec un vrai compte. Intégration non officielle, sans lien avec Microsoft ni Zoom."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-meeting-status/blob/main/docs/fr.md",
+          "label": {
+            "en": "Guide (French)",
+            "fr": "Guide (français)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-meeting-status/blob/main/docs/en.md",
+          "label": {
+            "en": "Guide (English)",
+            "fr": "Guide (anglais)"
+          }
+        },
+        {
+          "url": "https://entra.microsoft.com/",
+          "label": {
+            "en": "Microsoft Entra admin center",
+            "fr": "Centre d’administration Microsoft Entra"
+          }
+        },
+        {
+          "url": "https://marketplace.zoom.us/",
+          "label": {
+            "en": "Zoom App Marketplace",
+            "fr": "Zoom App Marketplace"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "microsoft_steps",
+      "type": "section",
+      "label": {
+        "en": "1. Microsoft Teams",
+        "fr": "1. Microsoft Teams"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "In the Microsoft Entra admin center, App registrations, New registration: accounts in an organizational directory; platform Web, redirect URI: the return address of this Gladys (click Connect once below, the status at the top of this page then shows it; https), or one of yours with \"Redirect URI\" below. API permissions: Microsoft Graph, delegated, Presence.Read and offline_access (your administrator may have to consent). Certificates & secrets: a new client secret (note its end date: renew it before). Copy the Application (client) ID and the secret value below, save, then click Connect.",
+        "fr": "Dans le centre d’administration Microsoft Entra, Inscriptions d’applications, Nouvelle inscription : comptes d’un annuaire d’organisation ; plateforme Web, URI de redirection : l’adresse de retour de ce Gladys (cliquez une fois sur Connecter plus bas, l’état en haut de cette page l’affiche alors ; en https), ou une adresse à vous avec « URL de redirection » plus bas. Autorisations d’API : Microsoft Graph, déléguées, Presence.Read et offline_access (votre administrateur devra peut-être consentir). Certificats et secrets : un nouveau secret client (notez sa date de fin : renouvelez-le avant). Copiez l’ID d’application (client) et la valeur du secret ci-dessous, enregistrez, puis cliquez sur Connecter."
+      }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "microsoft_client_id",
+      "type": "string",
       "required": false,
-      "default": "celsius",
+      "label": {
+        "en": "Microsoft: Application (client) ID",
+        "fr": "Microsoft : ID d’application (client)"
+      },
+      "description": {
+        "en": "Empty: Teams is not read.",
+        "fr": "Vide : Teams n’est pas lu."
+      }
+    },
+    {
+      "key": "microsoft_client_secret",
+      "type": "secret",
+      "required": false,
+      "label": {
+        "en": "Microsoft: client secret (value)",
+        "fr": "Microsoft : secret client (valeur)"
+      },
+      "description": {
+        "en": "The value of the client secret of your app. Kept by Gladys in its database, never shown again, sent only to Microsoft.",
+        "fr": "La valeur du secret client de votre application. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à Microsoft."
+      }
+    },
+    {
+      "key": "microsoft_tenant",
+      "type": "string",
+      "required": false,
+      "default": "organizations",
+      "label": {
+        "en": "Microsoft: tenant",
+        "fr": "Microsoft : tenant"
+      },
+      "description": {
+        "en": "organizations (any work or school account), or your tenant ID or domain (contoso.com). Personal accounts (common, consumers) have no presence: refused.",
+        "fr": "organizations (tout compte professionnel ou scolaire), ou l’ID ou le domaine de votre tenant (contoso.com). Les comptes personnels (common, consumers) n’ont pas de présence : refusés."
+      }
+    },
+    {
+      "key": "microsoft_account",
+      "type": "oauth2",
+      "label": {
+        "en": "Microsoft account",
+        "fr": "Compte Microsoft"
+      },
+      "description": {
+        "en": "Opens the Microsoft sign-in page (save the ID and the secret first).",
+        "fr": "Ouvre la page de connexion Microsoft (enregistrez d’abord l’ID et le secret)."
+      }
+    },
+    {
+      "key": "zoom_steps",
+      "type": "section",
+      "label": {
+        "en": "2. Zoom",
+        "fr": "2. Zoom"
+      },
+      "description": {
+        "en": "On the Zoom App Marketplace, Develop, Build App: a General app, user-managed. OAuth redirect URL and allow list: the return address of this Gladys (shown in the status after a first click on Connect below), or one of yours with \"Redirect URI\". Scopes: user:read:presence_status (or user:read on an older app), nothing else. Copy the Client ID and the Client Secret below, save, then click Connect.",
+        "fr": "Sur le Zoom App Marketplace, Develop, Build App : une application General, gérée par l’utilisateur (user-managed). OAuth redirect URL et allow list : l’adresse de retour de ce Gladys (affichée dans l’état après un premier clic sur Connecter plus bas), ou une adresse à vous avec « URL de redirection ». Scopes : user:read:presence_status (ou user:read sur une ancienne application), rien d’autre. Copiez le Client ID et le Client Secret ci-dessous, enregistrez, puis cliquez sur Connecter."
+      }
+    },
+    {
+      "key": "zoom_client_id",
+      "type": "string",
+      "required": false,
+      "label": {
+        "en": "Zoom: Client ID",
+        "fr": "Zoom : Client ID"
+      },
+      "description": {
+        "en": "Empty: Zoom is not read.",
+        "fr": "Vide : Zoom n’est pas lu."
+      }
+    },
+    {
+      "key": "zoom_client_secret",
+      "type": "secret",
+      "required": false,
+      "label": {
+        "en": "Zoom: Client Secret",
+        "fr": "Zoom : Client Secret"
+      },
+      "description": {
+        "en": "The Client Secret of your Zoom app. Kept by Gladys in its database, never shown again, sent only to Zoom.",
+        "fr": "Le Client Secret de votre application Zoom. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à Zoom."
+      }
+    },
+    {
+      "key": "zoom_account",
+      "type": "oauth2",
+      "label": {
+        "en": "Zoom account",
+        "fr": "Compte Zoom"
+      },
+      "description": {
+        "en": "Opens the Zoom authorization page (save the Client ID and Secret first).",
+        "fr": "Ouvre la page d’autorisation de Zoom (enregistrez d’abord le Client ID et le Secret)."
+      }
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "3. Options",
+        "fr": "3. Options"
+      },
+      "description": {
+        "en": "The service sends you back to Gladys and the integration reads your presence. If the redirect URI of your app is not this Gladys, write it in \"Redirect URI\": at the end, copy the whole address the browser shows (it holds code= and state=) and paste it into \"Finish the authorization\" below, within 15 minutes. The tokens are kept in clear in the /data volume of the integration (readable by its container only), sent only to the service that issued them, never in the logs.",
+        "fr": "Le service vous renvoie vers Gladys et l’intégration lit votre présence. Si l’URL de redirection de votre application n’est pas ce Gladys, saisissez-la dans « URL de redirection » : à la fin, copiez l’adresse complète affichée par le navigateur (elle contient code= et state=) et collez-la dans « Terminer l’autorisation » plus bas, dans les 15 minutes. Les jetons sont gardés en clair dans le volume /data de l’intégration (lisible par son conteneur seulement), envoyés seulement au service qui les a émis, jamais dans les journaux."
+      }
+    },
+    {
+      "key": "redirect_uri",
+      "type": "string",
+      "required": false,
+      "label": {
+        "en": "Redirect URI (optional)",
+        "fr": "URL de redirection (facultative)"
+      },
+      "description": {
+        "en": "Empty: the services send you back to this Gladys. Otherwise the redirect URI of your apps (https, or http on localhost only): finish by pasting the address the browser ended on.",
+        "fr": "Vide : les services vous renvoient vers ce Gladys. Sinon, l’URL de redirection de vos applications (https, ou http sur localhost seulement) : terminez en collant l’adresse sur laquelle le navigateur s’est arrêté."
+      },
+      "placeholder": {
+        "en": "https://…",
+        "fr": "https://…"
+      }
+    },
+    {
+      "key": "rule",
+      "type": "select",
+      "required": false,
+      "default": "meeting",
+      "label": {
+        "en": "Counts as \"in a meeting\"",
+        "fr": "Compte comme « en réunion »"
+      },
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "meeting",
+          "label": {
+            "en": "Meetings, calls and presentations",
+            "fr": "Réunions, appels et présentations"
+          }
+        },
+        {
+          "value": "busy",
+          "label": {
+            "en": "Also busy and do not disturb (and Zoom calendar events)",
+            "fr": "Aussi occupé et ne pas déranger (et événements d’agenda Zoom)"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
+      "key": "poll_seconds",
       "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
       "required": false,
-      "default": 300,
+      "default": 60,
       "min": 60,
-      "max": 3600
+      "max": 900,
+      "label": {
+        "en": "Read interval (seconds)",
+        "fr": "Intervalle de lecture (secondes)"
+      },
+      "description": {
+        "en": "One read per service per interval, a minute at least, whatever starts it (test button, saved configuration, reconnection of Gladys, restart).",
+        "fr": "Une lecture par service et par intervalle, une minute au moins, quoi qui la lance (bouton de test, configuration enregistrée, reconnexion de Gladys, redémarrage)."
+      }
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "required": false,
+      "default": "fr",
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms"
+      },
+      "options": [
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
+      "key": "finish_sign_in",
+      "timeout_seconds": 30,
+      "label": {
+        "en": "Finish the authorization",
+        "fr": "Terminer l’autorisation"
+      },
+      "description": {
+        "en": "Only with a redirect URI: paste the address the browser ended on after the Microsoft or Zoom page.",
+        "fr": "Seulement avec une URL de redirection : collez l’adresse sur laquelle le navigateur s’est arrêté après la page de Microsoft ou de Zoom."
+      },
+      "fields": [
+        {
+          "key": "url",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "Address with code= and state=",
+            "fr": "Adresse avec code= et state="
+          },
+          "placeholder": {
+            "en": "https://…?code=…&state=…",
+            "fr": "https://…?code=…&state=…"
+          }
+        }
+      ]
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+      "key": "test_connection",
+      "timeout_seconds": 60,
+      "label": {
+        "en": "Test",
+        "fr": "Tester"
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
       "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+        "en": "Shows the last result of each service and the next read; reads only once the interval has passed since the last read (never during a pause), also after an access refused.",
+        "fr": "Affiche le dernier résultat de chaque service et la prochaine lecture ; ne lit que si l’intervalle est écoulé depuis la dernière lecture (jamais pendant une pause), y compris après un accès refusé."
+      }
     }
   ]
 }

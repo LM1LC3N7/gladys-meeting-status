@@ -5,18 +5,21 @@ contributors.
 
 ## What this is
 
-A Gladys Assistant **external integration**: a Node.js service (Node 22+, ESM,
-no build step) that runs in its own sandboxed Docker container and talks to
-Gladys through
-[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
-its only runtime dependency. It started from the official JavaScript template.
+A Gladys Assistant **external integration** of type `device`: a Node.js
+service (Node 22+, ESM, no build step) in its own sandboxed Docker container,
+talking to Gladys through `@gladysassistant/integration-sdk` (v0.16), its only
+runtime dependency (HTTPS goes through `node:https`). It reads the presence of
+the user in Microsoft Teams (Microsoft Graph `GET /me/presence`, work or school
+accounts) and Zoom (`GET /users/me/presence_status`), read only, after an
+OAuth2 authorization (PKCE) of apps the user registers. Never tested with a
+real account. Read **[TODO.md](./TODO.md)** first: status and decisions.
 
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
+node --test test/app.test.js              # one file
 node --test --test-name-pattern "plug"    # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
@@ -31,17 +34,23 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
-.github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
+index.js            SDK bootstrap only
+src/handlers.js     every SDK handler -> the app (shared with the tests)
+src/app.js          MeetingApp: /data, getConfig retry, the two accounts, device, states,
+                    badge, status, Connect buttons, pasted address, Test button
+src/account.js      Account: one service: session, renewal timer, reads, pauses, stops
+src/oauth.js        authorization addresses (PKCE), token endpoints, pending sign-ins
+src/presence.js     the presence read and what it means (in a meeting or not, unknown)
+src/http.js         the only network access (node:https, bounded), errors by status
+src/devices.js      the device and its states (pure)
+src/store.js        /data/meeting-status-state.json (0600): tokens, stops, pauses, times
+src/config.js       config_schema normalized, client key (hash of service, id, tenant)
+src/constants.js    endpoints, keys, limits, timings
+src/i18n.js         runtime texts, device and feature names (en/fr)
+scripts/cover.mjs   cover.png (800x534) in plain Node
+scripts/mutants.mjs guards broken one by one, in a private copy (dev VM)
+test/helpers/       fake Microsoft and Zoom behind the transport; Gladys is the SDK's fake
+test/kit/           clocks and HTTPS test servers copied from gladys-testkit
 ```
 
 ## Rules
@@ -74,3 +83,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
+- **Secrets**: never a token, a code nor a client secret in a log, a status, an
+  error message or a state; the tokens live in `/data` only. A secret field is
+  described as "kept by Gladys in its database, never shown again" (Gladys does
+  not protect it further: never claim more).
+- **Never invent a value**: an unknown presence is not published, never as 0.
+- **One read per service per interval** (a minute at least), whatever starts it.

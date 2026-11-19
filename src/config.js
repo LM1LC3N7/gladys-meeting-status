@@ -1,45 +1,125 @@
 // -----------------------------------------------------------------------------
-// Integration configuration.
-//
-// The configuration is filled in by the user in Gladys, from the `config_schema`
-// declared in `gladys-assistant-integration.json`. The SDK fetches it for you
-// (`gladys.getConfig()`) and notifies you of every change through
-// `gladys.onConfigUpdated()`.
-//
-// This module only provides defaults and normalizes the received object, so the
-// rest of the code never has to deal with `undefined`.
+// The configuration of the manifest `config_schema`, normalized.
 // -----------------------------------------------------------------------------
 
-// Defaults: they MUST stay consistent with the `default` values declared in the
-// `config_schema` of the manifest.
-export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
+import { createHash } from 'node:crypto';
+import { POLL_SECONDS, RULES } from './constants.js';
+
+/** Defaults, mirrored by the manifest (checked by test/manifest.test.js). */
+export const DEFAULTS = {
+  microsoft_tenant: 'organizations',
+  poll_seconds: POLL_SECONDS.default,
+  rule: 'meeting',
+  language: 'fr',
+};
+
+export const LANGUAGES = ['fr', 'en'];
+
+/**
+ * A short hash of what a session belongs to (service, client id, tenant):
+ * the session in /data is dropped when one of them changes.
+ */
+export const clientKey = (...parts) =>
+  createHash('sha256')
+    .update(`gladys-meeting-status:client:${parts.join('\n')}`)
+    .digest('hex')
+    .slice(0, 16);
+
+const bounded = (raw, { min, max, default: fallback }) => {
+  const value = Number(raw);
+  return raw === null || raw === undefined || raw === '' || !Number.isFinite(value)
+    ? fallback
+    : Math.round(Math.max(min, Math.min(max, value)));
+};
+
+/** A short text without spaces nor control characters (an id, a secret), or ''. */
+const token = (raw, max = 256) => {
+  const text = String(raw ?? '').trim();
+  // eslint-disable-next-line no-control-regex
+  return text && text.length <= max && !/[\s\u0000-\u001f\u007f]/.test(text) ? text : '';
 };
 
 /**
- * Merge the user config with the defaults.
- * @param {Record<string, unknown>} raw config returned by the SDK
+ * The Microsoft tenant: `organizations` (any work or school account),
+ * a tenant id (GUID) or a verified domain. `common` and `consumers` would
+ * let a personal account sign in, which has no presence: refused.
  */
-export function normalizeConfig(raw = {}) {
+export function tenantOf(raw) {
+  const text = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (!text) {
+    return DEFAULTS.microsoft_tenant;
+  }
+  if (text === 'organizations') {
+    return text;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text)) {
+    return text;
+  }
+  if (
+    text.length <= 253 &&
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(text) &&
+    text !== 'common' &&
+    text !== 'consumers'
+  ) {
+    return text;
+  }
+  return '';
+}
+
+/** An http(s) address without spaces, or '' (a wrong one is ignored). */
+function address(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text || text.length > 2048 || /\s/.test(text)) {
+    return '';
+  }
+  try {
+    const url = new URL(text);
+    // HTTPS only, except a local address (the code never crosses a network in clear).
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && local) ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function account(provider, clientId, clientSecret, tenant = '') {
   return {
-    ...DEFAULT_CONFIG,
-    ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
+    provider,
+    clientId,
+    clientSecret,
+    tenant,
+    // Computed from the values kept, never from a refused one; '' when incomplete.
+    client:
+      clientId && clientSecret && (provider !== 'microsoft' || tenant)
+        ? clientKey(provider, clientId, tenant)
+        : '',
+    // Something typed: an incomplete account says what is missing.
+    started: Boolean(clientId || clientSecret),
+  };
+}
+
+export function normalizeConfig(raw = {}) {
+  const language = String(raw?.language ?? DEFAULTS.language)
+    .trim()
+    .toLowerCase();
+  const rule = String(raw?.rule ?? DEFAULTS.rule)
+    .trim()
+    .toLowerCase();
+  return {
+    accounts: {
+      microsoft: account(
+        'microsoft',
+        token(raw?.microsoft_client_id),
+        token(raw?.microsoft_client_secret, 1024),
+        tenantOf(raw?.microsoft_tenant),
+      ),
+      zoom: account('zoom', token(raw?.zoom_client_id), token(raw?.zoom_client_secret, 1024)),
+    },
+    redirectUri: address(raw?.redirect_uri),
+    pollSeconds: bounded(raw?.poll_seconds, POLL_SECONDS),
+    rule: RULES.includes(rule) ? rule : DEFAULTS.rule,
+    language: LANGUAGES.includes(language) ? language : DEFAULTS.language,
   };
 }
