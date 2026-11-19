@@ -108,10 +108,17 @@ qu’une fois.
   configuration de l’intégration, jamais affichés à l’écran), envoyés seulement au service qui les
   a émis, absents de `/data`, des journaux et des messages d’état. `/data` ne garde que des dates,
   des pauses et des arrêts. Une version qui les gardait dans `/data` les déplace vers Gladys au
-  démarrage, puis les retire de `/data`. Si Gladys ne peut pas garder de nouveaux jetons,
-  l’intégration le note dans les journaux et réessaie à chaque lecture ; un redémarrage avant cela
-  peut demander un nouveau Connecter (les jetons de renouvellement de Zoom et de Microsoft ne
-  servent qu’une fois).
+  démarrage, puis les retire de `/data`. Les jetons de renouvellement de Zoom et de Microsoft ne
+  servent qu’une fois : un renouvellement ne part que si Gladys est connecté et vient d’accepter
+  une écriture des jetons actuels ; sinon le jeton actuel reste et le renouvellement est retenté
+  une minute plus tard (les journaux disent « Gladys cannot keep the tokens »). Si Gladys refuse
+  le nouveau jeton juste après (les journaux disent « tokens not saved in Gladys »), il est
+  enregistré de nouveau toutes les 10 secondes à une minute et à chaque reconnexion à Gladys,
+  sans autre renouvellement avant. Un arrêt du conteneur attend jusqu’à 8 secondes un
+  renouvellement en cours et son enregistrement. Seuls un plantage ou un arrêt forcé du conteneur
+  dans les secondes mêmes d’un renouvellement, ou un redémarrage avant que Gladys accepte de
+  nouveau le nouveau jeton, peuvent le perdre : l’état dit alors que la session a pris fin ;
+  cliquez sur Connecter.
 - La présence est gardée en mémoire seulement, ni dans `/data` ni dans les journaux. « En réunion »
   garde son historique dans Gladys (désactivable par fonction) ; les textes de présence n’en ont
   pas.

@@ -82,6 +82,8 @@ export class MeetingApp {
       signedInChanged: () => this.publishDevices(),
       saveSession: (provider, value) =>
         this.gladys.setConfig({ [sessionKey(provider)]: value ?? '' }),
+      // A renewal leaves only while Gladys is connected (it can keep the new token).
+      gladysConnected: () => this.gladys.connected === true,
     };
     this.accounts = Object.fromEntries(PROVIDERS.map((p) => [p, new Account(p, host)]));
   }
@@ -104,15 +106,30 @@ export class MeetingApp {
     await this.updateStatus();
   }
 
-  /** The container stops: every timer cleared, the configuration retries too. */
-  shutdown() {
+  /**
+   * The container stops: nothing new starts, a renewal in flight and the
+   * session writes asked are waited for (a new renewal token is kept), at
+   * most `limit` (Docker kills after 10 s); then no timer nor request.
+   */
+  async shutdown(limit = TIMINGS.shutdownWait) {
     this.connection += 1;
-    for (const account of Object.values(this.accounts)) {
-      account.closed = true;
+    const accounts = Object.values(this.accounts);
+    for (const account of accounts) {
+      account.closing = true;
     }
     if (this.configTimer) {
       this.timers.clearTimeout(this.configTimer);
       this.configTimer = undefined;
+    }
+    this.stop();
+    let timer;
+    const late = new Promise((resolve) => {
+      timer = this.timers.setTimeout(resolve, limit);
+    });
+    await Promise.race([Promise.all(accounts.map((a) => a.settle())), late]);
+    this.timers.clearTimeout(timer);
+    for (const account of accounts) {
+      account.closed = true;
     }
     this.stop();
   }
@@ -120,7 +137,8 @@ export class MeetingApp {
   /**
    * Tokens an older /data held: moved to the configuration of Gladys (when
    * Gladys holds none for that service), then removed from /data once Gladys
-   * kept them (a failed save keeps them in /data for the next start).
+   * kept them (a failed save keeps them in /data for the next start, and
+   * is tried again within seconds: Account.scheduleSessionSave).
    */
   async migrateTokens() {
     let changed = false;
@@ -251,6 +269,8 @@ export class MeetingApp {
       await this.start(raw);
       return;
     }
+    // Gladys is back: tokens it did not keep are saved first.
+    await Promise.all(PROVIDERS.map((p) => this.accounts[p].saveSession()));
     await this.configUpdated(raw);
     this.published = undefined;
     this.badge = undefined;

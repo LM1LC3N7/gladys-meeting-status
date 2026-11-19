@@ -42,7 +42,7 @@ export class Account {
   /**
    * `host`: { transport, now, mono, timers, logger, memory(provider),
    * saveMemory(), interval(), rule(), statusChanged(), presenceChanged(),
-   * signedInChanged() }.
+   * signedInChanged(), saveSession(provider, value), gladysConnected() }.
    */
   constructor(provider, host) {
     this.provider = provider;
@@ -79,10 +79,16 @@ export class Account {
     /** The tokens (in memory; saved in the configuration of Gladys, never in /data). */
     this.stored = null;
     this.sessionLoaded = false;
-    /** Tokens not saved in Gladys yet (a failed setConfig): saved again at the next read. */
+    /** Tokens not saved in Gladys yet (a failed setConfig): saved again soon (short timer). */
     this.sessionPending = false;
-    /** The container stops: no timer, no request any more. */
+    /** The writes of the session to Gladys, one at a time (never an older value last). */
+    this.sessionChain = Promise.resolve();
+    this.sessionTimer = undefined;
+    this.sessionFailures = 0;
+    /** The container stopped (after shutdown): no timer, no request any more. */
     this.closed = false;
+    /** The container is stopping (shutdown started): no renewal leaves any more. */
+    this.closing = false;
     this.reset();
   }
 
@@ -126,6 +132,10 @@ export class Account {
       // The tokens saved in Gladys are read once; afterwards this process holds the truth.
       this.stored = config.stored ?? null;
       this.sessionLoaded = true;
+    }
+    if (this.sessionPending) {
+      // Not saved before this start (stop() cleared its timer): tried again soon.
+      this.scheduleSessionSave();
     }
     if (previous !== config.client) {
       this.lastReadMono = -Infinity;
@@ -184,6 +194,16 @@ export class Account {
     this.epoch += 1;
     this.clearTimer();
     this.clearRenewTimer();
+    this.clearSessionTimer();
+  }
+
+  /**
+   * The container stops (MeetingApp.shutdown): a renewal in flight, then the
+   * session writes asked, are waited for (the new renewal token is kept).
+   */
+  async settle() {
+    await this.renewing?.catch(() => {});
+    await this.sessionChain;
   }
 
   clearTimer() {
@@ -227,21 +247,66 @@ export class Account {
     return this.saveSession();
   }
 
-  /** Saves the tokens in the configuration of Gladys; false when it failed (tried again later). */
-  async saveSession() {
-    if (!this.sessionPending || this.closed) {
+  /**
+   * Saves the tokens in the configuration of Gladys; false when it failed
+   * (tried again by a short timer). One write at a time: each sends the
+   * session of the moment it leaves, so an older value is never written last.
+   * `witness`: the current session is written even when Gladys has it (a
+   * renewal is sent only once Gladys just accepted a write).
+   */
+  saveSession({ witness = false } = {}) {
+    // A write asked before a stop() still leaves, but its failure arms no timer.
+    const generation = this.generation;
+    const link = this.sessionChain.then(() => this.writeSession(witness, generation));
+    this.sessionChain = link.catch(() => {});
+    return link;
+  }
+
+  async writeSession(witness, generation) {
+    if (this.closed) {
       return !this.sessionPending;
+    }
+    if (!this.sessionPending && !witness) {
+      return true;
     }
     const value = this.stored;
     try {
       await this.host.saveSession(this.provider, value);
-      if (this.stored === value) {
-        this.sessionPending = false;
-      }
-      return true;
     } catch (err) {
       this.logger.warn(`${this.provider}: tokens not saved in Gladys (${err?.status ?? 'error'})`);
+      if (this.sessionPending && generation === this.generation) {
+        this.scheduleSessionSave();
+      }
       return false;
+    }
+    // A newer session set meanwhile stays to save (its own write follows).
+    if (this.stored === value) {
+      this.sessionPending = false;
+      this.sessionFailures = 0;
+      this.clearSessionTimer();
+    }
+    return true;
+  }
+
+  /** A failed save of the session: tried again after 10 s, then at most every minute. */
+  scheduleSessionSave() {
+    this.clearSessionTimer();
+    if (this.closed) {
+      return;
+    }
+    const delay =
+      TIMINGS.sessionRetry[Math.min(this.sessionFailures, TIMINGS.sessionRetry.length - 1)];
+    this.sessionFailures += 1;
+    this.sessionTimer = this.timers.setTimeout(() => {
+      this.sessionTimer = undefined;
+      this.saveSession().catch(() => {});
+    }, delay);
+  }
+
+  clearSessionTimer() {
+    if (this.sessionTimer) {
+      this.timers.clearTimeout(this.sessionTimer);
+      this.sessionTimer = undefined;
     }
   }
 
@@ -478,6 +543,21 @@ export class Account {
       // Nothing sent: the pause already running is neither extended nor restarted.
       throw new ServiceError('paused', 'paused');
     }
+    // Renewal tokens serve once: never a renewal Gladys could not keep. The
+    // session is written first (the pending one, or the current one again);
+    // refused or Gladys not connected, nothing is sent and the token stays.
+    if (!this.host.gladysConnected() || !(await this.saveSession({ witness: true }))) {
+      this.renewRetryAt = this.now() + TIMINGS.gladysWait;
+      this.renewError = new ServiceError('gladys', 'Gladys cannot keep the tokens');
+      throw new ServiceError('renew_wait', 'Gladys cannot keep the tokens');
+    }
+    if (s !== this.session) {
+      throw new ServiceError('renew_wait', 'a new sign-in replaced the session');
+    }
+    if (this.closing) {
+      // The container stops: its token could not be kept (a read in flight got a 401).
+      throw new ServiceError('renew_wait', 'the integration is stopping');
+    }
     const epoch = this.epoch;
     // Kept before the request: a restart during it never renews within a minute.
     this.memory.lastRenewAt = now;
@@ -642,7 +722,7 @@ export class Account {
 
   async run({ quick = false } = {}) {
     const generation = this.generation;
-    if (this.blocked || !this.host.ready() || this.closed) {
+    if (this.blocked || !this.host.ready() || this.closed || this.closing) {
       return;
     }
     // Tokens not saved in Gladys yet: tried again before the read.

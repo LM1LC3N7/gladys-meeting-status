@@ -19,6 +19,10 @@ up to date at the end of every milestone.
       a renewal leaves no timer nor request; tokens moved to Gladys; freshness
       3 minutes at least; tests and mutants for the gaps found; CI jobs with
       `timeout-minutes`.
+- [x] **Renewed tokens never lost** (2026-11-19, model of gladys-oura 0.1.3):
+      renewal only after a witness write Gladys accepted, failed saves retried
+      by a short bounded timer and at each reconnection, shutdown waits up to
+      8 s for a renewal in flight and its save; tests and mutants.
 - [ ] **Milestone 2 — real accounts**: a Microsoft 365 work account and a Zoom
       account; check the exact Zoom status spellings returned, the Microsoft
       consent errors, the redirect through my.gladysassistant.com.
@@ -57,8 +61,15 @@ up to date at the end of every milestone.
   tenant asks for a new Connect.
 - **Tokens in Gladys, never in /data** (review 1, rule of the brief): saved by
   `setConfig({ <service>_session })` (keys outside the schema, never sent to
-  the front), before the new access token is used; a failed save is retried
-  at each read. /data keeps stops, pauses and times only. Tokens of an older
+  the front), before the new access token is used. A renewal is sent only
+  while Gladys is connected and just accepted a witness write of the current
+  session (else retried after 1 min, never a loop); a failed save is retried
+  by a timer (10 s, 10 s, 10 s, 30 s, then every minute), at each
+  reconnection and before each read; one write at a time (each sends the
+  session of the moment it leaves). Shutdown (wired in src/handlers.js) sets
+  `closing` (no renewal nor read leaves), waits up to 8 s for a renewal in
+  flight and the writes, then `closed`. Left: a crash or kill in the seconds
+  of a renewal, or a restart before Gladys accepts the new token again. /data keeps stops, pauses and times only. Tokens of an older
   /data are moved to Gladys at start, then removed from /data (kept there if
   Gladys refused them).
 - **Daily budget**: 2,000 requests per service per UTC day (normal pace about

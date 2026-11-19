@@ -22,6 +22,9 @@ export function registerHandlers(gladys, app, logger) {
 
   gladys.onConfigUpdated((config) => app.configUpdated(config));
 
+  // The stop waits for a renewal in flight and its save (8 s at most): a renewal token serves once.
+  gladys.handleShutdown(() => app.shutdown());
+
   // Connection lifecycle: the first connection starts, a reconnection resends.
   gladys.on('connected', () => {
     app.onConnected(() => gladys.getConfig()).catch((err) => logger?.error('Start failed', err));

@@ -88,5 +88,10 @@ test/kit/           clocks and HTTPS test servers copied from gladys-testkit
   `<service>_session` outside the schema), never in `/data`. A secret field is
   described as "kept by Gladys in its database, never shown again" (Gladys does
   not protect it further: never claim more).
+- **Renewal tokens serve once**: a renewal leaves only after Gladys accepted a
+  witness write (`saveSession({ witness: true })`), a failed save is retried by
+  `scheduleSessionSave` (bounded, cleared by `stop()`), writes go one at a time
+  (`sessionChain`), and `shutdown()` waits (8 s at most) for a renewal in flight
+  and its save; `closing` stops new renewals and reads, `closed` everything.
 - **Never invent a value**: an unknown presence is not published, never as 0.
 - **One read per service per interval** (a minute at least), whatever starts it.

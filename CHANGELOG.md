@@ -10,6 +10,15 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+
+- A renewed token is never lost when Gladys cannot keep it: a renewal is sent
+  only while Gladys is connected and has just accepted a write of the current
+  tokens (otherwise tried again a minute later), and a new token Gladys
+  refused is saved again within seconds and at each reconnection to Gladys,
+  not only at the next read. Stopping the container waits up to 8 s for a
+  renewal in flight and its save, and no renewal starts during the stop.
+
 ## [0.1.1] - 2026-11-19
 
 ### Added

@@ -189,6 +189,106 @@ const MUTANTS = [
       '    await this.host.saveMemory();\n    try {',
     ],
   ],
+  // Tokens kept by Gladys: never a renewal it cannot keep, never one lost.
+  [
+    'renew-without-witness',
+    [
+      A,
+      'if (!this.host.gladysConnected() || !(await this.saveSession({ witness: true }))) {',
+      'if (false) {',
+    ],
+  ],
+  ['renew-gladys-away', [A, 'if (!this.host.gladysConnected() || !(await', 'if (!(await']],
+  [
+    'witness-not-written',
+    [A, 'if (!this.sessionPending && !witness) {', 'if (!this.sessionPending) {'],
+  ],
+  ['gladys-wait-loop', [A, '      this.renewRetryAt = this.now() + TIMINGS.gladysWait;\n', '']],
+  [
+    'renew-replaced-session',
+    [
+      A,
+      "    if (s !== this.session) {\n      throw new ServiceError('renew_wait', 'a new sign-in",
+      "    if (false) {\n      throw new ServiceError('renew_wait', 'a new sign-in",
+    ],
+  ],
+  [
+    'save-no-retry-timer',
+    [
+      A,
+      '      if (this.sessionPending && generation === this.generation) {\n        this.scheduleSessionSave();',
+      '      if (false) {\n        this.scheduleSessionSave();',
+    ],
+  ],
+  [
+    'save-timer-after-stop',
+    [
+      A,
+      'if (this.sessionPending && generation === this.generation) {',
+      'if (this.sessionPending) {',
+    ],
+  ],
+  [
+    'older-write-clears-pending',
+    [
+      A,
+      '    if (this.stored === value) {\n      this.sessionPending = false;',
+      '    if (true) {\n      this.sessionPending = false;',
+    ],
+  ],
+  [
+    'writes-not-chained',
+    [
+      A,
+      'const link = this.sessionChain.then(() => this.writeSession(witness, generation));',
+      'const link = this.writeSession(witness, generation);',
+    ],
+  ],
+  [
+    'start-no-pending-retry',
+    [
+      A,
+      '    if (this.sessionPending) {\n      // Not saved before this start',
+      '    if (false) {\n      // Not saved before this start',
+    ],
+  ],
+  [
+    'reconnect-no-save',
+    [P, '    await Promise.all(PROVIDERS.map((p) => this.accounts[p].saveSession()));\n', ''],
+  ],
+  [
+    'shutdown-no-wait',
+    [P, '    await Promise.race([Promise.all(accounts.map((a) => a.settle())), late]);\n', ''],
+  ],
+  [
+    'shutdown-unbounded',
+    [
+      P,
+      'await Promise.race([Promise.all(accounts.map((a) => a.settle())), late]);',
+      'await Promise.all(accounts.map((a) => a.settle()));',
+    ],
+  ],
+  [
+    'shutdown-closed-early',
+    [P, 'account.closing = true;', 'account.closing = true;\n      account.closed = true;'],
+  ],
+  [
+    'shutdown-not-wired',
+    [
+      'src/handlers.js',
+      'gladys.handleShutdown(() => app.shutdown());',
+      'gladys.handleShutdown(() => {});',
+    ],
+  ],
+  [
+    'renew-while-closing-request',
+    [
+      A,
+      '    if (this.closing) {\n      // The container stops: its token could not be kept',
+      '    if (false) {\n      // The container stops: its token could not be kept',
+    ],
+  ],
+  ['read-while-closing', [A, 'this.closed || this.closing) {', 'this.closed) {']],
 ];
 
 function apply(file, from, to) {

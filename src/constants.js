@@ -68,6 +68,12 @@ export const TIMINGS = {
   renewFloor: MINUTE,
   /** A renewal that did not reach the service: tried again after 1, 5, 15, then 60 minutes. */
   renewRetry: [MINUTE, 5 * MINUTE, 15 * MINUTE, HOUR],
+  /** A session Gladys did not keep: saved again after 10 s, then every 10 s to 1 min. */
+  sessionRetry: [10 * SECOND, 10 * SECOND, 10 * SECOND, 30 * SECOND, MINUTE],
+  /** The container stops: a renewal in flight and its save are waited for this long at most. */
+  shutdownWait: 8 * SECOND,
+  /** Gladys cannot keep a new token: no renewal sent, tried again after this. */
+  gladysWait: MINUTE,
   /** Without an expiry in the answer, the token is renewed after this. */
   defaultTokenLife: HOUR,
   /** 429: Retry-After when given, within 1 minute and 6 hours; 5 minutes without it. */

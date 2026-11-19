@@ -1,6 +1,7 @@
 // -----------------------------------------------------------------------------
 // Entry point: SDK wiring only (src/handlers.js registers every handler BEFORE
-// connect(), and delegates to the MeetingApp of src/app.js).
+// connect(), the shutdown cleanup included, and delegates to the MeetingApp of
+// src/app.js).
 //
 // Environment variables provided by the Gladys supervisor, read by the SDK:
 // GLADYS_HOST_API_URL, GLADYS_INTEGRATION_TOKEN, GLADYS_INTEGRATION_SELECTOR.
@@ -14,7 +15,6 @@ const gladys = new GladysIntegration();
 const app = new MeetingApp({ gladys });
 
 registerHandlers(gladys, app, logger);
-gladys.handleShutdown(() => app.shutdown());
 
 logger.info('Starting the meeting status integration...');
 gladys.connect().catch((err) => {
